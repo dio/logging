@@ -16,7 +16,7 @@ import (
 	"github.com/tetratelabs/telemetry"
 	"github.com/tetratelabs/telemetry/scope"
 
-	ziolog "github.com/dio/logging"
+	"github.com/dio/logging"
 )
 
 // ---------------------------------------------------------------------------
@@ -40,7 +40,7 @@ func init() {
 	})
 }
 
-var log = scope.Register("quotasvc", "Quota service operations")
+var logger = scope.Register("quotasvc", "Quota service operations")
 
 // ---------------------------------------------------------------------------
 // OTel SDK setup: real pipeline, in-memory reader for assertions.
@@ -50,7 +50,7 @@ var (
 	reader   *metric.ManualReader
 	tp       *sdktrace.TracerProvider
 	tracer   trace.Tracer
-	otelSink *ziolog.OTelSink
+	otelSink *logging.OTelSink
 )
 
 func TestMain(m *testing.M) {
@@ -64,11 +64,11 @@ func TestMain(m *testing.M) {
 	tracer = tp.Tracer("zia-test")
 
 	// Wire telemetry library → OTel.
-	otelSink = ziolog.NewOTelSink(mp, "zia")
+	otelSink = logging.NewOTelSink(mp, "zia")
 	telemetry.SetGlobalMetricSink(otelSink)
 
 	sl := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	scope.UseLogger(ziolog.New(sl))
+	scope.UseLogger(logging.New(sl))
 
 	m.Run()
 }
@@ -82,13 +82,13 @@ func TestMain(m *testing.M) {
 // ---------------------------------------------------------------------------
 
 func TestWhenWeLogWeAlsoSendMetrics(t *testing.T) {
-	log.Metric(reserveOK.With(clusterLabel.Upsert("openai"))).
+	logger.Metric(reserveOK.With(clusterLabel.Upsert("openai"))).
 		Info("reserve success", "user_id", "alice", "tokens", 1000)
 
-	log.Metric(reserveErrors.With(clusterLabel.Upsert("anthropic"))).
+	logger.Metric(reserveErrors.With(clusterLabel.Upsert("anthropic"))).
 		Error("reserve failed", context.DeadlineExceeded, "user_id", "bob")
 
-	log.Metric(quotaExceeded.With(clusterLabel.Upsert("openai"))).
+	logger.Metric(quotaExceeded.With(clusterLabel.Upsert("openai"))).
 		Info("quota exceeded", "user_id", "carol")
 
 	rm := collect(t)
@@ -106,7 +106,7 @@ func TestWhenWeLogWeAlsoSendMetrics(t *testing.T) {
 
 func TestMetricFiresEvenWhenLogIsSilenced(t *testing.T) {
 	sl := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	logger := ziolog.New(sl)
+	logger := logging.New(sl)
 	logger.SetLevel(telemetry.LevelError) // Info silenced
 
 	var silencedMetric telemetry.Metric
@@ -139,7 +139,7 @@ func TestTraceIDAppearsInLog(t *testing.T) {
 	capturing := slog.New(slog.NewJSONHandler(os.Stderr, nil)) // stderr for visibility
 	_ = capturing // we assert via the span context values below
 
-	logger := ziolog.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+	logger := logging.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	logger.Context(ctx).
 		Metric(reserveOK.With(clusterLabel.Upsert("openai"))).
 		Info("reserve success", "tokens", 500)
@@ -164,7 +164,7 @@ func TestContextLabelsCarryToMetrics(t *testing.T) {
 	)
 
 	// context carries request_id + cluster automatically into the log line.
-	log.Context(ctx).
+	logger.Context(ctx).
 		Metric(reserveOK.With(clusterLabel.Upsert("openai"))).
 		Info("billing settled", "input_tokens", 500, "output_tokens", 200)
 	// → INFO msg="billing settled" scope=quotasvc request_id=req-xyz cluster=openai input_tokens=500 ...

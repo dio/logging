@@ -4,4 +4,5 @@ use (
 	.
 	./e2e
 	./examples/server
+	./examples/trace
 )

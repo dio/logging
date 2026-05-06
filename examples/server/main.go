@@ -4,6 +4,9 @@
 // both a structured log line and an OTel counter. When an OTel span is active,
 // trace_id and span_id are automatically injected into the log line.
 //
+// The admin server also exposes a runtime log-level endpoint via
+// log.HTTPLevelHandler so you can change verbosity without a restart.
+//
 // Run:
 //
 //	go run .
@@ -12,7 +15,10 @@
 //
 //	curl http://localhost:8080/hello
 //	curl http://localhost:8080/fail
-//	curl http://localhost:9090/metrics   # see app_requests_total and app_errors_total
+//	curl http://localhost:9090/metrics          # see app_requests_total and app_errors_total
+//	curl http://localhost:9090/log/level        # GET: current level + available levels
+//	curl -XPUT http://localhost:9090/log/level \
+//	     -d '{"level":"DEBUG"}'                 # PUT: change level at runtime
 //
 // Log output will include trace_id and span_id on every line:
 //
@@ -108,7 +114,9 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	sl := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	// Wrap with LevelHandler so HTTPLevelHandler can change the level at runtime.
+	levelHandler := log.NewLevelHandler(log.LevelInfo, slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{}))
+	sl := slog.New(levelHandler)
 
 	// OTel metrics: Prometheus scrape at /metrics.
 	res, _ := resource.New(ctx, resource.WithAttributes(semconv.ServiceName("example-server")))
@@ -143,6 +151,7 @@ func main() {
 	appSrv   := &http.Server{Addr: ":8080", Handler: mux}
 	adminMux := http.NewServeMux()
 	adminMux.Handle("/metrics", promhttp.Handler())
+	adminMux.Handle("/log/level", log.NewHTTPLevelHandler(sl))
 	adminSrv := &http.Server{Addr: ":9090", Handler: adminMux}
 
 	sl.Info("starting", "app", ":8080", "admin", ":9090")

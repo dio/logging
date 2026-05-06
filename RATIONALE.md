@@ -117,6 +117,65 @@ that gets forgotten under pressure.
 
 ---
 
+## Why LevelHandler wraps, not extends, slog.Handler
+
+The standard library's `slog.Handler` interface has no built-in way to change the
+level after construction. `slog.HandlerOptions.Level` accepts a `slog.Leveler`, but
+that is fixed at construction time for the built-in handlers.
+
+`LevelHandler` solves this by wrapping any `slog.Handler` with a `*slog.LevelVar`,
+an atomic integer that can be set concurrently without locks. All handlers derived
+from it via `WithAttrs` and `WithGroup` share the same `LevelVar` pointer, so a
+single `SetLevel` call adjusts every descendant logger simultaneously.
+
+The design deliberately avoids embedding or mutating the inner handler. The wrapper
+is transparent: `Handle`, `WithAttrs`, and `WithGroup` all forward to the inner
+handler after the level gate. This means any `slog.Handler` — JSON, text, GCP, or a
+custom one — can be made levelable without modification.
+
+`SetLevel` panics if the handler is not a `LevelableHandler`. This is intentional:
+the failure mode is a startup panic rather than a silent no-op at runtime when you
+call it during an incident and nothing changes.
+
+---
+
+## Why HTTPLevelHandler uses GET/PUT, not POST
+
+`GET` is safe and idempotent — reading the current level has no side effects.
+`PUT` semantics match the operation: you are replacing the current level with a new
+one, not appending to a resource. `POST` would be technically defensible but less
+precise. The `405 Method Not Allowed` for everything else is explicit rather than
+silently routing to a default.
+
+The handler logs its own level changes at `INFO` including `remote_addr` and
+`user_agent`. This creates an audit trail in the same log stream that the level
+change affects, which is useful when chasing down why a service went quiet.
+
+---
+
+## Why six levels instead of slog's four
+
+`log/slog` defines `DEBUG(-4)`, `INFO(0)`, `WARN(4)`, `ERROR(8)` as named constants.
+It explicitly supports custom levels via the numeric type.
+
+Google Cloud Logging defines six severity levels that services deployed on GKE or
+Cloud Run are expected to use. Two are missing from slog's set: `NOTICE` and
+`EMERGENCY`. Both are operationally meaningful:
+
+- `NOTICE` fills the gap between `INFO` and `WARNING` for events that are normal but
+  significant — quota thresholds crossed, config reloads, leadership changes. These
+  are not warnings (no action needed) but deserve visibility.
+- `EMERGENCY` signals that the service is unusable and automated recovery is unlikely.
+  It is rarer than `ERROR` and should trigger a different (usually louder) alert path.
+
+The six levels are defined as `slog.Level` constants with values that fit into slog's
+numeric space (`-4, 0, 2, 4, 8, 12`) and do not collide with slog's own names. They
+are available in both the base package and the `gcp/` subpackage. The base package
+uses them for `LookupLevel`, `LevelNames`, and `LevelString`. The `gcp/` handler maps
+them to the Cloud Logging severity strings that the ingestion API expects.
+
+---
+
 ## Why the e2e uses an in-process sink instead of a real collector
 
 The e2e test needs to assert that specific metric values, log bodies, and span names

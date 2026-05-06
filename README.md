@@ -120,6 +120,42 @@ The same `trace_id` appears in the OTel trace, making cross-signal correlation t
 
 ---
 
+## Runtime log level
+
+Change the active log level without restarting the process. Wire
+`HTTPLevelHandler` onto your admin mux once in `main`:
+
+```go
+// Wrap your slog handler with LevelHandler to enable runtime changes.
+levelHandler := logging.NewLevelHandler(logging.LevelInfo, slog.NewTextHandler(os.Stderr, nil))
+sl := slog.New(levelHandler)
+
+adminMux.Handle("/log/level", logging.NewHTTPLevelHandler(sl))
+```
+
+```bash
+# Read current level
+curl http://localhost:9090/log/level
+# {"level":"INFO","available_levels":["DEBUG","INFO","NOTICE","WARNING","ERROR","EMERGENCY"]}
+
+# Change to DEBUG at runtime
+curl -X PUT http://localhost:9090/log/level -d '{"level":"DEBUG"}'
+# {"level":"DEBUG","previous_level":"INFO","message":"log level changed from INFO to DEBUG"}
+```
+
+Level names are case-insensitive. Aliases are accepted: `WARN` → WARNING, `ERR`/`FATAL` → ERROR.
+
+You can also change the level programmatically:
+
+```go
+logging.SetLevel(logger, logging.LevelDebug)
+```
+
+`SetLevel` panics if the logger's handler was not wrapped with `NewLevelHandler` — the
+panic is intentional and fires at startup, not in production.
+
+---
+
 ## Sinks
 
 | Sink | When to use |

@@ -176,6 +176,38 @@ them to the Cloud Logging severity strings that the ingestion API expects.
 
 ---
 
+## Why SetAttrs uses context, not logger.With
+
+Two mechanisms exist for attaching key-value pairs to a logger: `logger.With(kvs...)`
+and `logger.Context(ctx)` where the context carries pairs via `KeyValuesToContext`.
+They serve different lifetimes.
+
+`logger.With` is for **static dimensions** — values known when the logger is
+constructed and constant for the lifetime of the component: `service_name`,
+`environment`, `version`. These never change per request. `With` is the right choice
+because the resulting logger can be stored and reused without any per-call allocation.
+
+`KeyValuesToContext` / `SetAttrs` is for **dynamic dimensions** — values that are
+only known at request time and differ per caller: `customer_id`, `product`,
+`service_plane`, `user_id`. These cannot live on a shared logger because concurrent
+requests would race. They live in the context, which is already per-request.
+
+The critical property is that both mechanisms reach **both** logs and metrics in one
+pass. `logger.Context(ctx)` extracts the context pairs and appends them to the logger's
+own pairs before emitting. `metric.RecordContext(ctx, v)` extracts the same context
+pairs and converts them to OTel attributes before recording. No coordination required.
+
+The result: middleware stamps request identity into context once, and every log line
+and metric data point downstream carries that identity — including ones emitted deep
+inside library code that has no knowledge of the outer service structure.
+
+This is especially important for multi-tenant services. `customer_id` must appear on
+metrics for per-customer SLO tracking and cost attribution. But library code should
+not need to accept `customerID string` parameters just to dimension its metrics. The
+context carries it transparently.
+
+---
+
 ## Why the e2e uses an in-process sink instead of a real collector
 
 The e2e test needs to assert that specific metric values, log bodies, and span names

@@ -1,4 +1,4 @@
-// Package log provides a slog-backed implementation of [github.com/tetratelabs/telemetry]
+// Package logging provides a slog-backed implementation of [github.com/tetratelabs/telemetry]
 // optimized for OpenTelemetry, with a key guarantee: metrics are always emitted even
 // when the log level is silenced.
 //
@@ -37,6 +37,25 @@
 //
 // When a context with an active OTel span is attached via [Logger.Context], trace_id
 // and span_id are automatically injected into every log line. No manual extraction needed.
+//
+// # Cross-cutting attributes (customer_id, environment, service_name, …)
+//
+// Use [SetAttrs] or [NewAttrs] to stamp shared dimensions into a context once.
+// Every downstream logger.Context(ctx) call and metric.RecordContext(ctx, …) call
+// picks them up automatically — no per-call repetition:
+//
+//	// In middleware, after validating the request:
+//	ctx = logging.SetAttrs(ctx,
+//	    "customer_id", claims.CustomerID,
+//	    "environment", env,
+//	    "service_name", "valet",
+//	    "product", claims.Product,
+//	)
+//
+//	// In library code — zero knowledge of the dimensions above:
+//	logger.Context(ctx).Metric(requests).Info("request handled")
+//	// → log:    msg="request handled" customer_id=acme environment=prod service_name=valet …
+//	// → metric: requests_total{customer_id="acme",environment="prod",service_name="valet"} += 1
 //
 // # Sinks
 //

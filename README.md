@@ -120,6 +120,62 @@ The same `trace_id` appears in the OTel trace, making cross-signal correlation t
 
 ---
 
+## Cross-cutting attributes
+
+Use `SetAttrs` or `NewAttrs` to stamp shared dimensions into a context once at the
+request boundary. Every `logger.Context(ctx)` and `metric.RecordContext(ctx, …)` call
+downstream picks them up automatically — zero per-call repetition.
+
+This is the right pattern for multi-tenant services where `customer_id`, `environment`,
+`service_name`, `product`, and `service_plane` need to appear on every log line and
+every metric data point:
+
+```go
+// In middleware, once per request (after JWT validation):
+ctx = logging.SetAttrs(ctx,
+    "customer_id", claims.CustomerID,
+    "environment", os.Getenv("ENV"),
+    "service_name", "valet",
+    "product",      claims.Product,
+    "service_plane", "dp",
+)
+
+// In library code — no knowledge of the dimensions above:
+logger.Context(ctx).Metric(requests).Info("request handled", "route", r.URL.Path)
+// → log:    msg="request handled" customer_id=acme environment=prod service_name=valet
+//           product=tare service_plane=dp trace_id=... span_id=... route=/v1/completions
+// → metric: requests_total{customer_id="acme",environment="prod",service_name="valet",
+//                          product="tare",service_plane="dp"} += 1
+```
+
+The builder form is cleaner when you have many dimensions:
+
+```go
+ctx = logging.NewAttrs(ctx).
+    Set("customer_id", claims.CustomerID).
+    Set("environment", env).
+    Set("service_name", serviceName).
+    Into(ctx)
+```
+
+Calls accumulate: `SetAttrs` can be called multiple times as more attributes become
+known. Static service-level attributes (known at startup) belong on the logger via
+`logger.With(...)` instead:
+
+```go
+// Once in main — service-level static attributes:
+base := logging.New(slog.Default()).With(
+    "service_name", "valet",
+    "environment", os.Getenv("ENV"),
+)
+
+// Per-request — dynamic attributes from JWT claims go into context:
+ctx = logging.SetAttrs(r.Context(), "customer_id", claims.CustomerID)
+base.Context(ctx).Metric(requests).Info("handled")
+```
+
+---
+
 ## Runtime log level
 
 Change the active log level without restarting the process. Wire

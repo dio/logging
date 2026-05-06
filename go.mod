@@ -1,4 +1,4 @@
-module github.com/dio/log
+module github.com/dio/logging
 
 go 1.26.2
 

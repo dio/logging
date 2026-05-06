@@ -1,7 +1,7 @@
 # log
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/dio/log.svg)](https://pkg.go.dev/github.com/dio/log)
-[![CI](https://github.com/dio/log/actions/workflows/ci.yml/badge.svg)](https://github.com/dio/log/actions/workflows/ci.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/dio/logging.svg)](https://pkg.go.dev/github.com/dio/logging)
+[![CI](https://github.com/dio/logging/actions/workflows/ci.yml/badge.svg)](https://github.com/dio/logging/actions/workflows/ci.yml)
 
 A slog-backed [tetratelabs/telemetry](https://github.com/tetratelabs/telemetry) logger
 optimized for OpenTelemetry, with one guarantee that matters in production:
@@ -42,7 +42,7 @@ reasoning, see [RATIONALE.md](RATIONALE.md).
 ## Install
 
 ```bash
-go get github.com/dio/log
+go get github.com/dio/logging
 ```
 
 ---
@@ -55,7 +55,7 @@ go get github.com/dio/log
 import (
     "log/slog"
 
-    "github.com/dio/log"
+    "github.com/dio/logging"
     "github.com/tetratelabs/telemetry"
     "github.com/tetratelabs/telemetry/scope"
 )

@@ -1,11 +1,11 @@
-module github.com/dio/log/e2e
+module github.com/dio/logging/e2e
 
 go 1.26.2
 
-replace github.com/dio/log => ../
+replace github.com/dio/logging => ../
 
 require (
-	github.com/dio/log v0.0.0-00010101000000-000000000000
+	github.com/dio/logging v0.0.0-00010101000000-000000000000
 	github.com/tetratelabs/telemetry v0.8.2
 	go.opentelemetry.io/otel v1.43.0
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.19.0

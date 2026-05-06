@@ -13,7 +13,7 @@
 //
 // This package also defines six severity levels that map 1:1 to Cloud
 // Logging's severity enum, and remaps the trace_id / span_id fields injected
-// by github.com/dio/log into the logging.googleapis.com/* fields that Cloud
+// by github.com/dio/logging into the logging.googleapis.com/* fields that Cloud
 // Logging uses to link log entries to Cloud Trace spans.
 //
 // # Severity levels
@@ -41,8 +41,8 @@
 //	    "log/slog"
 //	    "os"
 //
-//	    log "github.com/dio/log"
-//	    "github.com/dio/log/gcp"
+//	    log "github.com/dio/logging"
+//	    "github.com/dio/logging/gcp"
 //	    "github.com/tetratelabs/telemetry/scope"
 //	)
 //
@@ -132,7 +132,7 @@ func replaceAttr(projectID string, groups []string, a slog.Attr) slog.Attr {
 	case slog.SourceKey:
 		a.Key = "logging.googleapis.com/sourceLocation"
 
-	// OTel trace_id (injected by github.com/dio/log when a span is active)
+	// OTel trace_id (injected by github.com/dio/logging when a span is active)
 	// → GCP "logging.googleapis.com/trace" with the required project prefix.
 	case "trace_id":
 		a.Key = "logging.googleapis.com/trace"

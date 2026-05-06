@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dio/log/gcp"
+	"github.com/dio/logging/gcp"
 )
 
 func TestNewHandler_fieldRemapping(t *testing.T) {

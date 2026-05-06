@@ -1,4 +1,4 @@
-package log_test
+package logging_test
 
 import (
 	"context"
@@ -16,7 +16,7 @@ import (
 	"github.com/tetratelabs/telemetry"
 	"github.com/tetratelabs/telemetry/scope"
 
-	ziolog "github.com/dio/log"
+	ziolog "github.com/dio/logging"
 )
 
 // ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 //go:build e2e
 
-// Package e2e tests github.com/dio/log against a real OTLP sink.
+// Package e2e tests github.com/dio/logging against a real OTLP sink.
 //
 // By default, an in-process OTLP gRPC sink is used, no Docker required,
 // precise assertions (value, label, trace ID), no sleep.
@@ -42,7 +42,7 @@ import (
 	"github.com/tetratelabs/telemetry"
 	"github.com/tetratelabs/telemetry/scope"
 
-	log "github.com/dio/log"
+	log "github.com/dio/logging"
 )
 
 // ---------------------------------------------------------------------------

@@ -1,4 +1,4 @@
-// Command server demonstrates github.com/dio/log in a minimal HTTP server.
+// Command server demonstrates github.com/dio/logging in a minimal HTTP server.
 //
 // Every request handler calls log.Metric(...).Info/Error, one call that emits
 // both a structured log line and an OTel counter. When an OTel span is active,
@@ -30,7 +30,7 @@ import (
 	"syscall"
 	"time"
 
-	log "github.com/dio/log"
+	log "github.com/dio/logging"
 	"github.com/tetratelabs/telemetry"
 	"github.com/tetratelabs/telemetry/scope"
 

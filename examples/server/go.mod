@@ -1,9 +1,9 @@
-module github.com/dio/log/examples/server
+module github.com/dio/logging/examples/server
 
 go 1.26.2
 
 require (
-	github.com/dio/log v0.0.0
+	github.com/dio/logging v0.0.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/tetratelabs/telemetry v0.8.2
 	go.opentelemetry.io/otel v1.43.0
@@ -31,4 +31,4 @@ require (
 	google.golang.org/protobuf v1.36.11 // indirect
 )
 
-replace github.com/dio/log => ../../
+replace github.com/dio/logging => ../../

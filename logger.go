@@ -14,7 +14,7 @@
 //	logger.Metric(errMetric).Error("reserve failed", err, "cluster", cluster)
 //	// → slog:       level=ERROR msg="reserve failed" trace_id=abc span_id=def cluster=openai err=...
 //	// → OTel metric: zia_reserve_errors_total{cluster="openai"} += 1
-package log
+package logging
 
 import (
 	"context"

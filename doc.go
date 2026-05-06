@@ -44,4 +44,4 @@
 // Call [OTelSink.Shutdown] on exit to flush pending metrics.
 //
 // [NewMemSink]: in-memory sink for unit tests. Inspect recorded values with [MemSink.Snapshot].
-package log
+package logging

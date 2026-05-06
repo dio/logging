@@ -1,10 +1,10 @@
 # log/gcp
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/dio/log/gcp.svg)](https://pkg.go.dev/github.com/dio/log/gcp)
+[![Go Reference](https://pkg.go.dev/badge/github.com/dio/logging/gcp.svg)](https://pkg.go.dev/github.com/dio/logging/gcp)
 
 A `slog.Handler` that formats log records for [Google Cloud Logging](https://cloud.google.com/logging/docs/structured-logging).
 
-Part of [github.com/dio/log](https://github.com/dio/log). Same `go.mod`, no new dependencies.
+Part of [github.com/dio/logging](https://github.com/dio/logging). Same `go.mod`, no new dependencies.
 
 ---
 
@@ -23,7 +23,7 @@ source       →  logging.googleapis.com/sourceLocation
 ```
 
 Beyond key names, `slog.LevelWarn` must map to `"WARNING"` (not `"WARN"`), and
-the OTel `trace_id` / `span_id` fields injected by `github.com/dio/log` must be
+the OTel `trace_id` / `span_id` fields injected by `github.com/dio/logging` must be
 reformatted into the `logging.googleapis.com/trace` and `logging.googleapis.com/spanId`
 fields that Cloud Logging uses to link log entries to Cloud Trace spans.
 
@@ -34,7 +34,7 @@ This package fixes all of that in one call.
 ## Install
 
 ```bash
-go get github.com/dio/log/gcp
+go get github.com/dio/logging/gcp
 ```
 
 ---
@@ -46,8 +46,8 @@ import (
     "log/slog"
     "os"
 
-    log "github.com/dio/log"
-    "github.com/dio/log/gcp"
+    log "github.com/dio/logging"
+    "github.com/dio/logging/gcp"
     "github.com/tetratelabs/telemetry/scope"
 )
 
@@ -150,7 +150,7 @@ logger.Log(ctx, gcp.LevelEmergency, "data loss detected", "table", "users")
 ## No new dependencies
 
 This package uses only `log/slog` from the standard library. The `otel/trace`
-package is already a dependency of `github.com/dio/log`. Nothing new is added.
+package is already a dependency of `github.com/dio/logging`. Nothing new is added.
 
 ---
 

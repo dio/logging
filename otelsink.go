@@ -125,7 +125,10 @@ func (m *otelGauge) Record(v float64) {
 	m.RecordContext(context.Background(), v)
 }
 func (m *otelGauge) RecordContext(ctx context.Context, v float64) {
-	m.g.Add(ctx, int64(v), otelmetric.WithAttributes(m.base.with...))
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	m.g.Add(ctx, int64(v), otelmetric.WithAttributes(m.base.attrs(ctx)...))
 }
 func (m *otelGauge) With(vals ...telemetry.LabelValue) telemetry.Metric {
 	return &otelGauge{base: m.base.withAttrs(vals), g: m.g}
@@ -145,7 +148,10 @@ func (m *otelHistogram) Record(v float64) {
 	m.RecordContext(context.Background(), v)
 }
 func (m *otelHistogram) RecordContext(ctx context.Context, v float64) {
-	m.h.Record(ctx, v, otelmetric.WithAttributes(m.base.with...))
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	m.h.Record(ctx, v, otelmetric.WithAttributes(m.base.attrs(ctx)...))
 }
 func (m *otelHistogram) With(vals ...telemetry.LabelValue) telemetry.Metric {
 	return &otelHistogram{base: m.base.withAttrs(vals), h: m.h}

@@ -115,6 +115,113 @@ Explorer opens Cloud Trace at the exact span.
 
 ---
 
+## Structured fields
+
+Beyond severity and trace correlation, the package ships helpers and wrapping
+handlers for the four other Cloud Logging structured fields that unlock UI
+features.
+
+### `httpRequest`
+
+Adds Method, URL, Status, Latency columns to the Cloud Logging UI plus filter
+chips. Emit it on the log line that summarizes an HTTP request:
+
+```go
+logger.LogAttrs(ctx, slog.LevelInfo, "request handled",
+    gcp.HTTPRequest("GET", "/api/echo", 200, 45*time.Millisecond),
+)
+```
+
+For more fields (userAgent, remoteIp, referer, protocol, request/response
+size), use `gcp.HTTPRequestFull`. Empty strings and zero sizes are omitted.
+
+### `logging.googleapis.com/operation`
+
+Groups all log lines from a single request under one expandable entry. Wrap
+the handler with `NewOperationHandler` to auto-inject `{id, producer}` from
+context, and emit explicit bookends:
+
+```go
+base := gcp.NewHandler(os.Stderr, "", nil)
+h := gcp.NewOperationHandler(base)
+logger := slog.New(h)
+
+// In middleware:
+ctx = gcp.WithOperation(ctx, gcp.Operation{ID: reqID, Producer: "auth"})
+logger.LogAttrs(ctx, slog.LevelInfo, "request received",
+    gcp.OperationStart(reqID, "auth"))
+
+// In handlers downstream: operation injected automatically.
+logger.InfoContext(ctx, "cache miss")
+
+// At the end:
+logger.LogAttrs(ctx, slog.LevelInfo, "request handled",
+    gcp.OperationEnd(reqID, "auth"))
+```
+
+Context-derived operations carry `id` and `producer` only. The `first` and
+`last` flags must be set explicitly via `OperationStart` / `OperationEnd`
+so the Cloud Logging UI groups the request correctly.
+
+### `logging.googleapis.com/labels`
+
+Moves bounded attr keys from `jsonPayload` to indexed labels for fast
+filtering. Wrap the handler with `NewLabelsHandler` and pass the keys you
+want hoisted:
+
+```go
+base := gcp.NewHandler(os.Stderr, "", nil)
+h := gcp.NewLabelsHandler(base, "customer", "environment", "region")
+logger := slog.New(h)
+
+logger.Info("hit",
+    slog.String("customer", "acme"),
+    slog.String("environment", "prod"),
+    slog.Int("rows", 42),
+)
+// rows stays in jsonPayload; customer + environment land under
+// logging.googleapis.com/labels.
+```
+
+Cap is 64 labels per entry (GCP limit). Overflow keys stay in
+`jsonPayload` and a one-time stderr warning fires so you know to trim
+`labelKeys`. NEVER add unbounded keys (request_id, user_id); Cloud
+Logging indexes labels and bills per series regardless of cardinality.
+
+### `logging.googleapis.com/sourceLocation`
+
+Emits file, line, and function for the call site. Cloud Error Reporting
+uses this for grouping. Enable via the standard `slog` option:
+
+```go
+gcp.NewHandler(os.Stderr, "", &slog.HandlerOptions{AddSource: true})
+```
+
+Parsing the stack on every log has measurable cost (`runtime.Caller`).
+Keep `AddSource: true` for services where Cloud Error Reporting matters;
+omit it for hot-path libraries.
+
+### Composing the wrappers
+
+The handlers compose. Innermost runs first:
+
+```go
+base := gcp.NewHandler(os.Stderr, "", &slog.HandlerOptions{AddSource: true})
+h := gcp.NewLabelsHandler(
+    gcp.NewOperationHandler(base),
+    "customer", "environment",
+)
+logger := slog.New(h)
+```
+
+Order matters less than you'd think: `NewOperationHandler` only adds an
+attr if one isn't already present, and `NewLabelsHandler` only hoists
+attrs whose keys you nominated. Putting labels outermost is the
+recommended order because it sees the final attr set including
+operation.
+
+---
+
 ## Composing with existing HandlerOptions
 
 If you already have a `slog.HandlerOptions` (for example with `AddSource` or a

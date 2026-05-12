@@ -3,6 +3,7 @@ module github.com/dio/logging
 go 1.26.2
 
 require (
+	cloud.google.com/go/compute/metadata v0.9.0
 	github.com/tetratelabs/telemetry v0.8.2
 	go.opentelemetry.io/otel v1.43.0
 	go.opentelemetry.io/otel/metric v1.43.0

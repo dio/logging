@@ -73,9 +73,22 @@ const (
 // build the logging.googleapis.com/trace field:
 // "projects/my-project-123/traces/<trace_id>".
 //
+// Pass an empty string to opt into auto-detection:
+//
+//  1. GOOGLE_CLOUD_PROJECT env (App Engine, Cloud Functions, gcloud CLI)
+//  2. GCLOUD_PROJECT env (legacy)
+//  3. GCP metadata server http://metadata.google.internal
+//     (Cloud Run, GKE, GCE, App Engine flex), 200ms timeout, cached
+//     for the process lifetime
+//
+// If none of the above resolve a project, the trace correlation rewrite
+// is skipped (logs still emit valid Cloud Logging JSON, they just do
+// not link to Cloud Trace spans).
+//
 // If opts is nil, defaults are used. If opts.ReplaceAttr is already set it
 // is chained after the GCP remapping so both run.
 func NewHandler(w io.Writer, projectID string, opts *slog.HandlerOptions) slog.Handler {
+	projectID = ResolveProjectID(projectID)
 	gcpOpts := &slog.HandlerOptions{}
 	if opts != nil {
 		*gcpOpts = *opts
@@ -95,6 +108,9 @@ func NewHandler(w io.Writer, projectID string, opts *slog.HandlerOptions) slog.H
 // GCP Cloud Logging field names and converts OTel trace_id / span_id to the
 // logging.googleapis.com/* fields Cloud Logging expects.
 //
+// projectID accepts an empty string for auto-detection. See NewHandler
+// for the resolution order.
+//
 // Use this when you need to compose with an existing slog.HandlerOptions:
 //
 //	opts := &slog.HandlerOptions{
@@ -103,6 +119,7 @@ func NewHandler(w io.Writer, projectID string, opts *slog.HandlerOptions) slog.H
 //	}
 //	slog.New(slog.NewJSONHandler(os.Stderr, opts))
 func ReplaceAttr(projectID string) func([]string, slog.Attr) slog.Attr {
+	projectID = ResolveProjectID(projectID)
 	return func(groups []string, a slog.Attr) slog.Attr {
 		return replaceAttr(projectID, groups, a)
 	}

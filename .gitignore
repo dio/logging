@@ -2,3 +2,5 @@
 *.prof
 *.svg
 dist/
+.graymatter/
+/trace

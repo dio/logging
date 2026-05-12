@@ -56,6 +56,29 @@ scope.UseLogger(log.New(slog.New(gcp.NewHandler(os.Stderr, "my-project", nil))))
 
 That is the only change needed. Everything else stays the same.
 
+### Zero-config project detection
+
+Pass an empty string for `projectID` and the handler resolves it from the environment:
+
+```go
+gcp.NewHandler(os.Stderr, "", nil) // auto-detect
+```
+
+Resolution order:
+
+1. Explicit string passed to `NewHandler` (or `ReplaceAttr`)
+2. `GOOGLE_CLOUD_PROJECT` env (App Engine, Cloud Functions, gcloud CLI)
+3. `GCLOUD_PROJECT` env (legacy)
+4. GCP metadata server via [`cloud.google.com/go/compute/metadata`](https://pkg.go.dev/cloud.google.com/go/compute/metadata). Cloud Run, GKE, GCE, App Engine flex. 200ms timeout. Cached for the process lifetime (success and failure both cached, so dev laptops do not pay the timeout repeatedly).
+
+On Cloud Run you can drop the explicit project entirely; `GOOGLE_CLOUD_PROJECT` is set automatically. On GKE the metadata server provides it. On non-GCP environments the chain returns empty and the trace correlation rewrite is skipped (logs still emit valid Cloud Logging JSON, they just do not link to Cloud Trace).
+
+Use `ResolveProjectID("")` directly when you want the resolved value for other purposes:
+
+```go
+project := gcp.ResolveProjectID("") // empty on non-GCP
+```
+
 ---
 
 ## What it remaps

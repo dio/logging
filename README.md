@@ -182,13 +182,11 @@ See `examples/trace/` for a runnable example of all three patterns.
 
 ## Cross-cutting attributes
 
-Use `SetAttrs` or `NewAttrs` to stamp shared dimensions into a context once at the
-request boundary. Every `logger.Context(ctx)` and `metric.RecordContext(ctx, …)` call
-downstream picks them up automatically — zero per-call repetition.
+Two scopes, picked deliberately based on the cardinality of your values.
 
-This is the right pattern for multi-tenant services where `customer_id`, `environment`,
-`service_name`, `product`, and `service_plane` need to appear on every log line and
-every metric data point:
+### Bounded attrs (logs AND metric labels)
+
+Use `SetAttrs` or `NewAttrs` for low-cardinality enums like customer ID, environment, service name, region, plan tier. These flow into both log records and metric labels:
 
 ```go
 // In middleware, once per request (after JWT validation):
@@ -200,15 +198,58 @@ ctx = logging.SetAttrs(ctx,
     "service_plane", "dp",
 )
 
-// In library code — no knowledge of the dimensions above:
+// In library code, no knowledge of the dimensions above:
 logger.Context(ctx).Metric(requests).Info("request handled", "route", r.URL.Path)
-// → log:    msg="request handled" customer_id=acme environment=prod service_name=valet
-//           product=tare service_plane=dp trace_id=... span_id=... route=/v1/completions
-// → metric: requests_total{customer_id="acme",environment="prod",service_name="valet",
-//                          product="tare",service_plane="dp"} += 1
+// log:    msg="request handled" customer_id=acme environment=prod service_name=valet
+//         product=tare service_plane=dp trace_id=... span_id=... route=/v1/completions
+// metric: requests_total{customer_id="acme",environment="prod",service_name="valet",
+//                        product="tare",service_plane="dp"} += 1
 ```
 
-The builder form is cleaner when you have many dimensions:
+### Log-only attrs (logs only, never metric labels)
+
+Use `SetLogAttrs` for unbounded values like `request_id`, `user_id`, raw IP, or anything else where the value space is huge:
+
+```go
+ctx = logging.SetLogAttrs(ctx,
+    "request_id", reqID,
+    "user_id", claims.UserID,
+)
+
+logger.Context(ctx).Metric(requests).Info("hit")
+// log:    msg=hit ... request_id=abc user_id=u-42
+// metric: requests_total{customer_id="acme",...} += 1
+//         (NO request_id or user_id on the counter)
+```
+
+### Why two scopes
+
+OpenTelemetry counters allocate a new time series for every unique combination of label values. A service at 1000 RPS for an hour with `request_id` on its counters produces 3.6 million series. Cloud Monitoring, Prometheus, and Mimir all bill per series or reject past a hard cap. The counter becomes useless and your metrics backend bills you for the storage.
+
+The fix is keeping unbounded values strictly off counters. Two scopes encode the rule in the API. `SetAttrs` is for bounded; `SetLogAttrs` is for unbounded. Same context, different storage, different downstream consumers.
+
+Anti-pattern (this used to be the only option):
+
+```go
+// WRONG: request_id leaks to every counter label as a cardinality bomb.
+ctx = logging.SetAttrs(ctx,
+    "customer_id", claims.CustomerID,
+    "request_id", reqID,
+)
+logger.Context(ctx).Metric(requests).Info("hit")
+```
+
+Correct:
+
+```go
+ctx = logging.SetAttrs(ctx, "customer_id", claims.CustomerID)
+ctx = logging.SetLogAttrs(ctx, "request_id", reqID)
+logger.Context(ctx).Metric(requests).Info("hit")
+```
+
+### Builder form
+
+For many bounded dimensions, the builder is cleaner:
 
 ```go
 ctx = logging.NewAttrs(ctx).
@@ -223,13 +264,13 @@ known. Static service-level attributes (known at startup) belong on the logger v
 `logger.With(...)` instead:
 
 ```go
-// Once in main — service-level static attributes:
+// Once in main, service-level static attributes:
 base := logging.New(slog.Default()).With(
     "service_name", "valet",
     "environment", os.Getenv("ENV"),
 )
 
-// Per-request — dynamic attributes from JWT claims go into context:
+// Per-request, dynamic attributes from JWT claims go into context:
 ctx = logging.SetAttrs(r.Context(), "customer_id", claims.CustomerID)
 base.Context(ctx).Metric(requests).Info("handled")
 ```
@@ -267,7 +308,7 @@ You can also change the level programmatically:
 logging.SetLevel(logger, logging.LevelDebug)
 ```
 
-`SetLevel` panics if the logger's handler was not wrapped with `NewLevelHandler` — the
+`SetLevel` panics if the logger's handler was not wrapped with `NewLevelHandler`. The
 panic is intentional and fires at startup, not in production.
 
 ---

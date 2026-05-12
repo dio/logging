@@ -83,8 +83,16 @@ func (l *slogLogger) Context(ctx context.Context) telemetry.Logger {
 	c := l.clone()
 	c.ctx = ctx
 
-	// Pull KVPs stored in context by KeyValuesToContext.
+	// Pull KVPs stored in context by KeyValuesToContext (metric-safe scope).
+	// These also flow into metric labels via the OTel sinks.
 	if fromCtx := telemetry.KeyValuesFromContext(ctx); len(fromCtx) > 0 {
+		c.kvs = append(c.kvs, fromCtx...)
+	}
+
+	// Pull log-only KVPs (set via SetLogAttrs). These decorate log records
+	// but are deliberately invisible to the metric sinks so unbounded
+	// values like request_id never reach counter labels.
+	if fromCtx := GetLogAttrs(ctx); len(fromCtx) > 0 {
 		c.kvs = append(c.kvs, fromCtx...)
 	}
 

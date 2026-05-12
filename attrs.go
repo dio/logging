@@ -9,11 +9,18 @@ import (
 // Attrs holds a set of key-value pairs that flow through context into both
 // log lines and metric attributes automatically.
 //
-// Wire once — at the edge of your service (middleware, gRPC interceptor, handler
-// constructor) — and every logger.Context(ctx) call downstream carries the same
-// dimensions without any per-call boilerplate:
+// Attrs is the BOUNDED scope: use it for low-cardinality enums (customer
+// ID, environment, service name, region) that are safe as metric labels.
+// For UNBOUNDED values like request_id, user_id, raw IP, or anything else
+// with a huge value space, use SetLogAttrs (in logattrs.go) instead. The
+// log-only scope lets request_id decorate log records without exploding
+// counter cardinality.
 //
-//	// In middleware, after claims are validated:
+// Wire once at the edge of your service (middleware, gRPC interceptor,
+// handler constructor) and every logger.Context(ctx) call downstream
+// carries the same dimensions without any per-call boilerplate:
+//
+//	// Bounded: safe on metric labels.
 //	ctx = logging.NewAttrs(ctx).
 //	    Set("customer_id", claims.CustomerID).
 //	    Set("environment", env).
@@ -21,10 +28,20 @@ import (
 //	    Set("product", claims.Product).
 //	    Into(ctx)
 //
-//	// In library code — no knowledge of the dimensions above:
+//	// Unbounded: logs only, never metric labels.
+//	ctx = logging.SetLogAttrs(ctx,
+//	    "request_id", reqID,
+//	    "user_id", claims.UserID,
+//	)
+//
+//	// In library code, no knowledge of the dimensions above:
 //	logger.Context(ctx).Metric(requests).Info("request handled")
-//	// → log:    msg="request handled" customer_id=acme environment=prod service_name=valet product=tare trace_id=...
-//	// → metric: requests_total{customer_id="acme",environment="prod",service_name="valet",product="tare"} += 1
+//	// log:    msg="request handled" customer_id=acme environment=prod
+//	//         service_name=valet product=tare request_id=abc user_id=u-42
+//	//         trace_id=...
+//	// metric: requests_total{customer_id="acme",environment="prod",
+//	//         service_name="valet",product="tare"} += 1
+//	//         (no request_id or user_id on the counter)
 type Attrs struct {
 	ctx  context.Context
 	kvps []any
@@ -45,7 +62,7 @@ func (a *Attrs) Set(key, value string) *Attrs {
 
 // Into stamps all accumulated key-value pairs into the context and returns it.
 // The returned context can be passed to logger.Context(ctx) or
-// metric.RecordContext(ctx, ...) directly — both pick up the pairs automatically.
+// metric.RecordContext(ctx, ...) directly; both pick up the pairs automatically.
 //
 // Into uses telemetry.KeyValuesToContext, which appends to any pairs already
 // present in the context, so it is safe to call multiple times as request
